@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Captura de Dibujo - Formato Compatible</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --accent-color: #e74c3c;
+            --dark-color: #34495e;
+            --light-color: #f5f5f5;
+            --text-color: #333;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --border-radius: 8px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: var(--light-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        h1 {
+            color: var(--dark-color);
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 1.8rem;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 10px;
+        }
+        
+        .canvas-container {
+            position: relative;
+            margin-bottom: 15px;
+            border: 2px solid var(--dark-color);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            width: 100%;
+            background-color: white;
+            box-shadow: var(--shadow);
+            aspect-ratio: 4/3;
+            touch-action: none;
+        }
+        
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            touch-action: none;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: var(--border-radius);
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+            background-color: white;
+            box-shadow: var(--shadow);
+        }
+        
+        .recording {
+            background-color: #ffebee;
+            color: var(--accent-color);
+        }
+        
+        .idle {
+            background-color: #e8f5e9;
+            color: #388e3c;
+        }
+        
+        .message {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: var(--text-color);
+            text-align: center;
+            background-color: white;
+            padding: 10px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            width: 100%;
+        }
+        
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 12px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            flex-grow: 1;
+            max-width: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow);
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        #clearBtn {
+            background-color: var(--accent-color);
+        }
+        
+        #clearBtn:hover {
+            background-color: #c0392b;
+        }
+        
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.5rem;
+                margin-bottom: 10px;
+            }
+            
+            .canvas-container {
+                aspect-ratio: 1/1;
+            }
+            
+            button {
+                padding: 10px 15px;
+                font-size: 14px;
+                width: 100%;
+                max-width: none;
+            }
+            
+            .message {
+                font-size: 0.8rem;
+            }
+            
+            .status {
+                padding: 8px;
+                font-size: 0.9rem;
+            }
+        }
+        
+        @media (max-width: 400px) {
+            h1 {
+                font-size: 1.3rem;
+            }
+            
+            .controls {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
+        
+        .drawing {
+            cursor: crosshair;
+        }
+        
+        footer {
+            margin-top: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #777;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Captura de Dibujo</h1>
+        
+        <div class="canvas-container" id="canvasContainer">
+            <canvas id="drawingCanvas"></canvas>
+        </div>
+        
+        <div id="status" class="status idle">Esperando que comiences a dibujar...</div>
+        
+        <div id="message" class="message">
+            Dibuja algo. Después de 2 segundos sin dibujar, se descargará automáticamente el archivo JSON compatible.
+        </div>
+        
+        <div class="controls">
+            <button id="clearBtn">Limpiar Lienzo</button>
+            <button id="downloadBtn">Descargar JSON</button>
+        </div>
+    </div>
+    
+    <footer>
+        Desarrollado para Dibujando Juntos © 2025
+    </footer>
+
+    <script>
+        // Elementos del DOM
+        const canvas = document.getElementById('drawingCanvas');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const ctx = canvas.getContext('2d');
+        const statusElement = document.getElementById('status');
+        const messageElement = document.getElementById('message');
+        const clearBtn = document.getElementById('clearBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        
+        // Variables para el dibujo
+        let isDrawing = false;
+        let isCapturing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let hasStartedDrawing = false;
+        let inactivityTimer = null;
+        
+        // Variables para el registro de datos JSON
+        let movements = [];
+        let startTime = 0;
+        
+        // Establecer tamaño del canvas
+        function resizeCanvas() {
+            const container = canvasContainer;
+            const displayWidth = container.clientWidth;
+            const displayHeight = container.clientHeight;
+            
+            // Verificar si ya tiene el tamaño correcto para evitar resetear innecesariamente
+            if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+                // Guardar el dibujo actual
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // Establecer nuevas dimensiones
+                canvas.width = displayWidth;
+                canvas.height = displayHeight;
+                
+                // Restaurar contexto
+                setupCanvasContext();
+                
+                // Restaurar dibujo si es posible y el tamaño no ha cambiado mucho
+                try {
+                    if (imageData.width > 0 && imageData.height > 0) {
+                        // Dibujar fondo blanco
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // Intentar ajustar la imagen anterior al nuevo tamaño
+                        ctx.putImageData(imageData, 0, 0);
+                    }
+                } catch (e) {
+                    console.error('Error al restaurar el dibujo:', e);
+                    // Simplemente limpiar si hay error
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+        }
+        
+        // Configurar el contexto del canvas
+        function setupCanvasContext() {
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.lineWidth = isMobileDevice() ? 4 : 3; // Línea más gruesa en móviles
+            ctx.strokeStyle = '#000000';
+            
+            // Fondo blanco
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // Detectar si es un dispositivo móvil
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+        
+        // Iniciar la captura
+        function startCapturing() {
+            isCapturing = true;
+            statusElement.textContent = 'Capturando dibujo...';
+            statusElement.classList.remove('idle');
+            statusElement.classList.add('recording');
+            canvasContainer.classList.add('drawing');
+        }
+        
+        // Detener la captura
+        function stopCapturing() {
+            if (isCapturing) {
+                isCapturing = false;
+                statusElement.textContent = 'Captura finalizada';
+                statusElement.classList.remove('recording');
+                statusElement.classList.add('idle');
+                canvasContainer.classList.remove('drawing');
+                
+                // Descargar el JSON
+                downloadJSON();
+                
+                // Resetear
+                hasStartedDrawing = false;
+            }
+        }
+        
+        // Descargar el JSON con los datos del dibujo
+        function downloadJSON() {
+            if (movements.length === 0) {
+                messageElement.textContent = 'No hay datos para descargar. Dibuja algo primero.';
+                return;
+            }
+            
+            // Crear el blob y descargar
+            const blob = new Blob([JSON.stringify(movements, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            // Generar nombre de archivo con fecha y hora
+            const now = new Date();
+            const timestamp = now.toISOString().split('T')[0] + '-' + 
+                            now.getHours() + now.getMinutes() + now.getSeconds();
+            
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'dibujo_web_' + timestamp + '.json';
+            
+            document.body.appendChild(a);
+            a.click();
+            
+            // Limpiar
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+            
+            messageElement.textContent = 'Archivo JSON descargado. Puedes comenzar a dibujar de nuevo.';
+        }
+        
+        // Función principal de dibujo (ratón)
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            // Obtener las coordenadas correctas
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const x = Math.round((e.clientX - rect.left) * scaleX);
+            const y = Math.round((e.clientY - rect.top) * scaleY);
+            
+            // Dibujar la línea
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            
+            // Actualizar las coordenadas
+            lastX = x;
+            lastY = y;
+            
+            // Registrar el movimiento para JSON
+            if (hasStartedDrawing) {
+                movements.push({
+                    tiempo: parseFloat(((Date.now() - startTime) / 1000).toFixed(3)),
+                    posicion: [x, y],
+                    presionado: true
+                });
+            }
+            
+            // Si es el primer trazo, iniciar la captura
+            if (!hasStartedDrawing) {
+                hasStartedDrawing = true;
+                startTime = Date.now();
+                startCapturing();
+                
+                // Registrar el primer punto
+                movements.push({
+                    tiempo: parseFloat(((Date.now() - startTime) / 1000).toFixed(3)),
+                    posicion: [x, y],
+                    presionado: true
+                });
+            }
+            
+            // Resetear el timer de inactividad
+            resetInactivityTimer();
+        }
+        
+        // Reiniciar el timer de inactividad
+        function resetInactivityTimer() {
+            clearTimeout(inactivityTimer);
+            
+            // Configurar el timer para detener la captura después de 2 segundos de inactividad
+            inactivityTimer = setTimeout(() => {
+                if (hasStartedDrawing) {
+                    // Registrar el último evento con soltar=true
+                    movements.push({
+                        tiempo: parseFloat(((Date.now() - startTime) / 1000).toFixed(3)),
+                        posicion: [lastX, lastY],
+                        presionado: false,
+                        soltar: true
+                    });
+                    
+                    stopCapturing();
+                }
+            }, 2000);
+        }
+        
+        // Evento al comenzar a dibujar (ratón)
+        function startDrawing(e) {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            isDrawing = true;
+            lastX = Math.round((e.clientX - rect.left) * scaleX);
+            lastY = Math.round((e.clientY - rect.top) * scaleY);
+        }
+        
+        // Evento al dejar de dibujar (ratón)
+        function stopDrawing(e) {
+            if (e) e.preventDefault();
+            
+            if (isDrawing) {
+                isDrawing = false;
+                
+                // Registrar que se soltó el botón
+                if (hasStartedDrawing) {
+                    movements.push({
+                        tiempo: parseFloat(((Date.now() - startTime) / 1000).toFixed(3)),
+                        posicion: [lastX, lastY],
+                        presionado: false,
+                        soltar: true
+                    });
+                }
+            }
+        }
+        
+        // Iniciar dibujo (táctil)
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            isDrawing = true;
+            lastX = Math.round((touch.clientX - rect.left) * scaleX);
+            lastY = Math.round((touch.clientY - rect.top) * scaleY);
+            
+            // Registrar el punto de inicio para dispositivos táctiles
+            if (!hasStartedDrawing) {
+                hasStartedDrawing = true;
+                startTime = Date.now();
+                startCapturing();
+                
+                movements.push({
+                    tiempo: parseFloat(((Date.now() - startTime) / 1000).toFixed(3)),
+                    posicion: [lastX, lastY],
+                    presionado: true
+                });
+            }
+        }
+        
+        // Dibujar (táctil)
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            const currentX = Math.round((touch.clientX - rect.left) * scaleX);
+            const currentY = Math.round((touch.clientY - rect.top) * scaleY);
+            
+            // Dibujar línea
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(currentX, currentY);
+            ctx.stroke();
+            
+            // Actualizar última posición
+            lastX = currentX;
+            lastY = currentY;
+            
+            // Registrar movimiento
+            if (hasStartedDrawing) {
+                movements.push({
+                    tiempo: parseFloat(((Date.now() - startTime) / 1000).toFixed(3)),
+                    posicion: [currentX, currentY],
+                    presionado: true
+                });
+            }
+            
+            // Resetear timer de inactividad
+            resetInactivityTimer();
+        }
+        
+        // Detener dibujo (táctil)
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            if (isDrawing) {
+                isDrawing = false;
+                
+                // Registrar que se soltó el dedo
+                if (hasStartedDrawing) {
+                    movements.push({
+                        tiempo: parseFloat(((Date.now() - startTime) / 1000).toFixed(3)),
+                        posicion: [lastX, lastY],
+                        presionado: false,
+                        soltar: true
+                    });
+                }
+            }
+        }
+        
+        // Limpiar el lienzo
+        function clearCanvas() {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Detener la captura si está activa
+            if (isCapturing) {
+                stopCapturing();
+            }
+            
+            // Reiniciar variables
+            hasStartedDrawing = false;
+            movements = [];
+            messageElement.textContent = 'Lienzo limpiado. Dibuja algo nuevo.';
+        }
+        
+        // Inicializar la aplicación
+        function init() {
+            // Configurar tamaño inicial
+            resizeCanvas();
+            setupCanvasContext();
+            
+            // Eventos del canvas para ratón
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseout', stopDrawing);
+            
+            // Eventos táctiles para dispositivos móviles
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+            canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+            
+            // Eventos de botones
+            clearBtn.addEventListener('click', clearCanvas);
+            downloadBtn.addEventListener('click', downloadJSON);
+            
+            // Manejar redimensionamiento
+            window.addEventListener('resize', resizeCanvas);
+            window.addEventListener('orientationchange', function() {
+                // Esperar a que termine la transición de orientación
+                setTimeout(resizeCanvas, 300);
+            });
+            
+            // Prevenir menú contextual en el canvas
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+        }
+        
+        // Iniciar la aplicación cuando se cargue la página
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
